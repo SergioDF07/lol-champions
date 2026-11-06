@@ -12,12 +12,19 @@ class ChampionSkin {
     this.hasChromas = false,
   });
 
-  bool get isChromaVariant {
-    final lower = name.toLowerCase();
-    return lower.contains('chroma') ||
-        RegExp(r'\((pearl|ruby|emerald|sapphire|obsidian|tanzanite|rose quartz|turquoise|citrine|amethyst|catseye|aquamarine|sandstone|meteorite|rainbow)\)',
-                caseSensitive: false)
-            .hasMatch(name);
+  static final _parenthesized = RegExp(r'^(.*\S)\s*\(([^)]+)\)\s*$');
+  static final _year = RegExp(r'^\d{4}$');
+
+  // DDragon lists chromas as "<Skin> (<Color>)"; a 4-digit year marks a real skin.
+  static List<ChampionSkin> onlyRealSkins(List<ChampionSkin> all) {
+    final names = all.map((s) => s.name.trim().toLowerCase()).toSet();
+    return all.where((s) {
+      if (s.name.toLowerCase().contains('chroma')) return false;
+      final match = _parenthesized.firstMatch(s.name);
+      if (match == null) return true;
+      if (_year.hasMatch(match.group(2)!.trim())) return true;
+      return !names.contains(match.group(1)!.trim().toLowerCase());
+    }).toList();
   }
 
   factory ChampionSkin.fromJson(
@@ -131,10 +138,11 @@ class ChampionDetailModel {
       tags: asStringList(json['tags'], fallback: const ['Tag']),
       info: ChampionInfo.fromJson(asMap(json['info'])),
       stats: ChampionStats.fromJson(asMap(json['stats'])),
-      skins: asMapList(json['skins'])
-          .map((s) => ChampionSkin.fromJson(s, championName: name))
-          .where((s) => !s.isChromaVariant)
-          .toList(),
+      skins: ChampionSkin.onlyRealSkins(
+        asMapList(json['skins'])
+            .map((s) => ChampionSkin.fromJson(s, championName: name))
+            .toList(),
+      ),
       spells: asMapList(json['spells']).map(ChampionSpell.fromJson).toList(),
       passive: ChampionPassive.fromJson(asMap(json['passive'])),
       version: version,
